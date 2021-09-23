@@ -242,12 +242,10 @@ public class BraintreePaymentPluginApi extends PluginPaymentPluginApi<BraintreeR
 					);
 					dao.updateResponse(transaction.getKbTransactionPaymentId(), updatedProperties, context.getTenantId());
 					wasRefreshed = true;
-				}
-				catch(BraintreeException e){
-					throw new PaymentPluginApiException("Error connecting to Braintree", e.getMessage());
-				}
-				catch(SQLException e){
-					throw new PaymentPluginApiException("Could not load payment information from database.", e.getMessage());
+				} catch (BraintreeException e) {
+					throw new PaymentPluginApiException("Error connecting to Braintree", e);
+				} catch (SQLException e) {
+					throw new PaymentPluginApiException("Could not load payment information from database", e);
 				}
 			}
 		}
@@ -265,15 +263,18 @@ public class BraintreePaymentPluginApi extends PluginPaymentPluginApi<BraintreeR
 		if(!braintreeCustomerId.equals(BraintreePluginProperties.PROPERTY_FALLBACK_VALUE)){
 			setCustomerIdCustomField(braintreeCustomerId, kbAccountId, context);
 		}
-		if(paymentMethodProps != null && paymentMethodProps.getExternalPaymentMethodId() != null && !paymentMethodProps.getExternalPaymentMethodId().equals(kbPaymentMethodId.toString())){
-			//Payment method was created in Braintree. Synchronize the payment method ID and create in KillBill only
-			try{
-				Result<? extends PaymentMethod> result = braintreeClient.updatePaymentMethod(paymentMethodProps.getExternalPaymentMethodId(),
-						kbPaymentMethodId.toString(), getCustomerIdCustomField(kbAccountId, context));
-				if(!result.isSuccess()) throw new BraintreeException(result.getMessage());
-			}
-			catch (BraintreeException e){
-				throw new PaymentPluginApiException("Could not update payment method in Braintree",e.getMessage());
+		if (paymentMethodProps != null &&
+			paymentMethodProps.getExternalPaymentMethodId() != null &&
+			!paymentMethodProps.getExternalPaymentMethodId().equals(kbPaymentMethodId.toString())) {
+			// Payment method was created in Braintree. Synchronize the payment method ID and create in KillBill only
+			try {
+				final Result<? extends PaymentMethod> result = braintreeClient.updatePaymentMethod(paymentMethodProps.getExternalPaymentMethodId(),
+																								   kbPaymentMethodId.toString());
+				if (!result.isSuccess()) {
+					throw new BraintreeException(result.getMessage());
+				}
+			} catch (final BraintreeException e) {
+				throw new PaymentPluginApiException("Could not update payment method in Braintree", e);
 			}
 		}
 		else{
@@ -294,7 +295,7 @@ public class BraintreePaymentPluginApi extends PluginPaymentPluginApi<BraintreeR
 					throw new BraintreeException(result.getMessage());
 			}
 			catch(BraintreeException e){
-				throw new PaymentPluginApiException("Could not create payment method in Braintree",e.getMessage());
+				throw new PaymentPluginApiException("Could not create payment method in Braintree", e);
 			}
 		}
 
@@ -573,13 +574,18 @@ public class BraintreePaymentPluginApi extends PluginPaymentPluginApi<BraintreeR
 						paymentMethod.getToken(),
 						paymentMethod.isDefault(),
 						properties);
-				killbillAPI.getPaymentApi().addPaymentMethod(getAccount(kbAccountId, context),
-						paymentMethod.getToken(),
-						BraintreeActivator.PLUGIN_NAME,
-						paymentMethod.isDefault(),
-						paymentMethodInfo,
-						properties,
-						context);
+				try {
+					killbillAPI.getPaymentApi().addPaymentMethod(getAccount(kbAccountId, context),
+																 paymentMethod.getToken(),
+																 BraintreeActivator.PLUGIN_NAME,
+																 paymentMethod.isDefault(),
+																 paymentMethodInfo,
+																 properties,
+																 context);
+				} catch (final PaymentApiException e) {
+					// In case of errors, opportunistically continue
+					logger.warn("Unable to create new local Braintree payment method {}", paymentMethod.getToken(), e.getCause());
+				}
 			} else {
 				logger.info("Updating existing local Braintree payment method {}", existingPaymentMethodRecord.getKbPaymentMethodId());
 				dao.updatePaymentMethod(UUID.fromString(existingPaymentMethodRecord.getKbPaymentMethodId()),
